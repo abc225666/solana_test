@@ -1,11 +1,18 @@
 use solana_client::rpc_client::RpcClient;
+use solana_client::pubsub_client::PubsubClient;
+use solana_client::rpc_config::RpcSignatureSubscribeConfig;
 use solana_sdk::signature::Signature;
-use solana_transaction_status::UiTransactionEncoding;
+use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::pubkey::Pubkey;
+use solana_transaction_status::UiTransactionEncoding;
+
+use std::{thread, time};
 
 use bincode::deserialize;
 use serde_derive::{Deserialize, Serialize};
 use serde_big_array::big_array;
+use log::*;
+use env_logger;
 
 use std::str::FromStr;
 
@@ -35,6 +42,32 @@ struct OpenOrders {
     pub client_order_ids: [u64; 128],
     pub referrer_rebates_accrued: u64,
     pub buf2: [u8; 7],
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct Market {
+    buf1: [u8; 5],
+    account_flags: u64,
+    owner: Pubkey,
+    valutSignerNouce: u64,
+    baseMint: Pubkey,
+    quoteMint: Pubkey,
+    baseValut: Pubkey,
+    baseDepositsTotal: u64,
+    baseFeesAccrued: u64,
+    quoteValut: Pubkey,
+    quoteDepositTotal: u64,
+    quoteFeesAccrued: u64,
+    quoteDustThreshold: u64,
+    requestQueue: Pubkey,
+    eventQueue: Pubkey,
+    bids: Pubkey,
+    asks: Pubkey,
+    baseLotSize: u64,
+    quoteLotSize: u64,
+    feeRateBps: u64,
+    referrerRebatesAccrued: u64,
+    buf2: [u8; 7],
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq)]
@@ -103,21 +136,52 @@ impl OpenOrders {
     }
 }
 
+impl Market {
+    pub fn deserialize(input: &[u8]) -> Self {
+        deserialize(input).unwrap()
+    }
+}
+
+
 fn main() {
-    let api_url = String::from("https://api.mainnet-beta.solana.com/");
-    let c = RpcClient::new(api_url);
+    let api_url = String::from("http://api.rpcpool.com/");
+    let mut c = RpcClient::new(api_url.clone());
 
     let key = Pubkey::from_str("8tzS7SkUZyHPQY7gLqsMCXZ5EDCgjESUHcB17tiR1h3Z").unwrap();
 
     let order_key = Pubkey::from_str("GJwrRrNeeQKY2eGzuXGc3KBrBftYbidCYhmA6AZj2Zur").unwrap();
 
-    let a = c.get_account_data(&key).unwrap();
+    let market_key = Pubkey::from_str("ByRys5tuUWDgL73G8JBAEfkdFf8JWBzPBDHsBVQ5vbQA").unwrap();
+
+    /*let a = c.get_account_data(&key).unwrap();
     let order_data = c.get_account_data(&order_key).unwrap();
+    let market_data = c.get_account_data(&market_key).unwrap();
 
 
     let b = AMM::deserialize(&a);
     let order_deserial = OpenOrders::deserialize(&order_data);
+//
+
+    let c = Market::deserialize(&market_data);
 
     println!("{:?}", b);
     println!("{:?}", order_deserial);
+    println!("{:?}", c)*/
+    let sig = Signature::from_str("2BhRygLSAhkNu7e5sCA78B28Z1SREuiJzqJT7qNXMXF1sL8kasPgvEQkMBHujidDW9hbDpc3Qs3EW9ucgMmYWy8W").unwrap();
+
+    loop {
+        let hash = c.get_recent_blockhash_with_commitment(CommitmentConfig::confirmed()).unwrap().value.0;
+        println!("hash: {}", hash);
+
+        let mut t = 0;
+
+        loop {
+            t+=1;
+            if t==10 {
+                break;
+            }
+            println!("{}, {:?}",t,  c.get_fee_calculator_for_blockhash_with_commitment(&hash, CommitmentConfig::confirmed()));
+            thread::sleep(time::Duration::from_millis(1000));
+        }
+    }
 }
